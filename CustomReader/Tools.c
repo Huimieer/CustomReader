@@ -1,6 +1,8 @@
 #include "Tools.h"
 #include "Version.h"
 #include "LogSystem.h"
+#include "ldasm.h"
+
 extern STRUCT_OFFSET gStructOffset;
 extern WIN_VER_DETAIL gWinVersion;
 
@@ -901,6 +903,9 @@ BOOLEAN ValidateUnicodeString(PUNICODE_STRING usStr)
     return TRUE;
 }
 
+//
+//在源字符串中寻找子字符串
+//
 BOOL myRtlStrUnicodeString(PUNICODE_STRING src,PUNICODE_STRING sub)
 {
     PWSTR p1;
@@ -937,4 +942,109 @@ BOOL myRtlStrUnicodeString(PUNICODE_STRING src,PUNICODE_STRING sub)
         p1++;
     }
     return FALSE;
+}
+
+//
+//通过搜索PsLookupProcessByProcessId函数，获取PspCidTable的地址 只在X86下
+//nt!PsLookupProcessByProcessId: XP系统
+//805ca54e ff3560b35580    push    dword ptr [nt!PspCidTable (8055b360)]
+//805ca554 e82fbe0300      call    nt!ExMapHandleToPointer (80606388)
+//WIN7 SP1 X86
+//8406b58f 57              push    edi
+//8406b590 ff7508          push    dword ptr [ebp+8]
+//8406b593 8b3d341ff583    mov     edi,dword ptr [nt!PspCidTable (83f51f34)]
+//8406b599 e8d958feff      call    nt!ExMapHandleToPointer (84050e77)
+//
+NTSTATUS GetPspCidTable(OUT PVOID* lpPspCidTable)
+{
+	NTSTATUS		status              = STATUS_NOT_FOUND;
+    UNICODE_STRING	uniFunctionName     = {0};
+	BYTE*			ptr                 = NULL;
+    int i;
+	RtlInitUnicodeString(&uniFunctionName, L"PsLookupProcessByProcessId"); 
+
+	ptr = (BYTE*)MmGetSystemRoutineAddress(&uniFunctionName); //MmGetSystemRoutineAddress可以通过函数名获得函数地址
+    
+    if (gWinVersion == WINDOWS_VERSION_XP){
+        for (i = 0; i < PAGE_SIZE; i++,ptr++){
+
+            if (*(PUSHORT)(ptr - 2) == 0x35FF && *(ptr + 4) == 0xE8){
+
+                *lpPspCidTable = (PVOID)*(ULONG *)ptr;
+
+                status = STATUS_SUCCESS;
+
+                break;
+            }
+        }
+    }
+    else if(gWinVersion == WINDOWS_VERSION_7_7000 || gWinVersion == WINDOWS_VERSION_7_7600_UP){
+        for (i = 0; i < PAGE_SIZE; i++,ptr++){
+
+            if (*(PUSHORT)(ptr - 5) == 0x75FF && *(ptr + 4) == 0xE8){
+
+                *lpPspCidTable = (PVOID)*(ULONG *)ptr;
+
+                status = STATUS_SUCCESS;
+
+                break;
+            }
+        }
+    }
+	return status;
+}
+
+//
+//
+//  
+HANDLE GetCsrssPid()
+{
+    HANDLE Process,hObject;
+    HANDLE CsrId = (HANDLE)0;
+    OBJECT_ATTRIBUTES obj;
+    CLIENT_ID cid;
+    UCHAR Buff[260] = {0};
+    POBJECT_NAME_INFORMATION ObjName = (PVOID)&Buff;
+    PSYSTEM_HANDLE_INFORMATION_EX Handles;
+    ULONG i;
+    ULONG nSize;
+
+    //获取PSYSTEM_HANDLE_INFORMATION_EX
+    Handles = GetInfoTable(&nSize);
+    if(!Handles)
+    {
+        return CsrId;
+    }
+    for(i = 0; i < Handles->NumberOfHandles; i++)
+    {
+        if(Handles->Information[i].ObjectTypeNumber == 21)
+        {
+            InitializeObjectAttributes(&obj, NULL, OBJ_KERNEL_HANDLE, NULL, NULL);
+            cid.UniqueProcess = (HANDLE)Handles->Information[i].ProcessId;
+            cid.UniqueThread  = 0;
+
+            //打开进程
+            if(NT_SUCCESS(NtOpenProcess(&Process, PROCESS_DUP_HANDLE, &obj, &cid)))
+            {
+                //copy handle
+                if(NT_SUCCESS(ZwDuplicateObject(Process, (HANDLE)Handles->Information[i].Handle, NtCurrentProcess(), &hObject, 0, 0, DUPLICATE_SAME_ACCESS)))
+                {
+                    //query
+                    if(NT_SUCCESS(ZwQueryObject(hObject, ObjectNameInformation, ObjName, 0x100, NULL)))
+                    {
+                        if(ObjName->Name.Buffer && !wcsncmp(L"\\Windows\\ApiPort", ObjName->Name.Buffer, 20))
+                        {
+                            //返回pid
+                            CsrId = (HANDLE)Handles->Information[i].ProcessId;
+                            KdPrint(("Csrss.exe PID = %d", CsrId));
+                        }
+                    }
+                    ZwClose(hObject);
+                }
+                ZwClose(Process);
+            }
+        }
+    }
+    ExFreePool(Handles);
+    return CsrId;
 }
