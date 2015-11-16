@@ -861,11 +861,29 @@ CTMR_API BOOL _cdecl InitCustomReader()
     return true;
 }
 
+
+//
+//Õ£÷π±£ª§
+//
+void stopProtect()
+{
+    DWORD dwRet     = 0;
+    HANDLE hDevice  = OpenDevice();
+    if (hDevice == NULL)
+        return;
+
+    MyDeviceIoControl(hDevice,FC_STOP_PROTECT,NULL,0,NULL,0,&dwRet,NULL);
+
+    CloseHandle(hDevice);
+    return;
+}
 //
 //–∂‘ÿcustomReader
 //
 CTMR_API void _cdecl UnloadCustomReader()
 {
+    stopProtect();
+
     UnloadDriver(CTMR_NAME);
 
     Mhook_Unhook((PVOID*)&pfnOriZwOpenProcess);

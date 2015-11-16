@@ -107,38 +107,38 @@ HANDLE OpenProcessByName(wchar_t * wszName)
 int _tmain(int argc, _TCHAR* argv[])
 {
     InitCustomReader();
-    ULONG g1 = 0;
-    ULONG g2 = 0;
-    unsigned char buffer[100] ={0};
-    if (PromotePrivileges()){
+    //ULONG g1 = 0;
+    //ULONG g2 = 0;
+    //unsigned char buffer[100] ={0};
+    //if (PromotePrivileges()){
 
-        HANDLE handle = OpenProcessByName(L"DNF.exe");
-        printf("handle is : 0x%x\r\n",(DWORD)handle);
+    //    HANDLE handle = OpenProcessByName(L"DNF.exe");
+    //    printf("handle is : 0x%x\r\n",(DWORD)handle);
 
-        if (handle){
-            DWORD dwRet;
-            MEMORY_BASIC_INFORMATION mbi = {0};
-            if(sizeof(MEMORY_BASIC_INFORMATION) != VirtualQueryEx(handle,(LPVOID)0x417000,&mbi,sizeof(MEMORY_BASIC_INFORMATION))){
-                 printf("VirtualQueryEx failed ,last err: %d\r\n",GetLastError());
-            }
-            else{
-                printf("VirtualQueryEx ok!\r\n");
-                printf("mbi.BaseAddress : 0x%p\r\n",mbi.BaseAddress);
-                printf("mbi.RegionSize : 0x%p\r\n",mbi.RegionSize);
-            }
-            if (ReadProcessMemory(handle,(LPVOID)0x417000,&g1,4,&dwRet)){
-                printf("g1 : 0x%x\r\n",g1);
-            }
-            if (ReadProcessMemory(handle,(LPVOID)0x417004,&g2,4,&dwRet)){
-                printf("g2 : 0x%x\r\n",g2);
-            }
-            if (ReadProcessMemory(handle,(LPVOID)0x417008,&buffer,10,&dwRet)){
-                printf(", : %s\r\n",buffer);
-            }
-            CloseHandle(handle);
+    //    if (handle){
+    //        DWORD dwRet;
+    //        MEMORY_BASIC_INFORMATION mbi = {0};
+    //        if(sizeof(MEMORY_BASIC_INFORMATION) != VirtualQueryEx(handle,(LPVOID)0x417000,&mbi,sizeof(MEMORY_BASIC_INFORMATION))){
+    //             printf("VirtualQueryEx failed ,last err: %d\r\n",GetLastError());
+    //        }
+    //        else{
+    //            printf("VirtualQueryEx ok!\r\n");
+    //            printf("mbi.BaseAddress : 0x%p\r\n",mbi.BaseAddress);
+    //            printf("mbi.RegionSize : 0x%p\r\n",mbi.RegionSize);
+    //        }
+    //        if (ReadProcessMemory(handle,(LPVOID)0x417000,&g1,4,&dwRet)){
+    //            printf("g1 : 0x%x\r\n",g1);
+    //        }
+    //        if (ReadProcessMemory(handle,(LPVOID)0x417004,&g2,4,&dwRet)){
+    //            printf("g2 : 0x%x\r\n",g2);
+    //        }
+    //        if (ReadProcessMemory(handle,(LPVOID)0x417008,&buffer,10,&dwRet)){
+    //            printf(", : %s\r\n",buffer);
+    //        }
+    //        CloseHandle(handle);
 
-        }
-    }
+    //    }
+    //}
 
     system("pause");
     UnloadCustomReader();

@@ -1,6 +1,7 @@
 #pragma once
 #include "Utils.h"
 #include "CtrlCmd.h"
+#include "Version.h"
 
 
 /*¼ÙµÄ¾ä±úÖµ*/

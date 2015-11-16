@@ -67,6 +67,8 @@ VOID InitStructOffset()
 			gStructOffset.EProcessVadRoot				= 0x11c;
             /*  */
             gStructOffset.FileObjectSize                = 0x70;
+
+            gStructOffset.HANDLE_TABLE_HandleTableList  = 0x1c;
 		}
 		break;
 	case WINDOWS_VERSION_7_7000:
@@ -74,6 +76,8 @@ VOID InitStructOffset()
 		{
 			//
             gStructOffset.FileObjectSize                = 0x80;
+
+            gStructOffset.HANDLE_TABLE_HandleTableList  = 0x10;
 		}
 		break;
 	}

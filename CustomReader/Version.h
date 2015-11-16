@@ -24,6 +24,9 @@ typedef struct tagStructOffset{
     /*FILEOBJECT 结构相关偏移*/
     ULONG FileObjectSize;
 
+    /*句柄表偏移*/
+    ULONG  HANDLE_TABLE_HandleTableList; //+0x01c HandleTableList  : _LIST_ENTRY
+
 
 }STRUCT_OFFSET,*PSTRUCT_OFFSET;
 

@@ -1,7 +1,6 @@
 #include "Tools.h"
 #include "Version.h"
 #include "LogSystem.h"
-#include "ldasm.h"
 
 extern STRUCT_OFFSET gStructOffset;
 extern WIN_VER_DETAIL gWinVersion;
@@ -995,56 +994,114 @@ NTSTATUS GetPspCidTable(OUT PVOID* lpPspCidTable)
 }
 
 //
+//不同的系统偏移不太一样
+//
+BYTE* GetPspCidTableByKpcr()
+{
+    BYTE *PspCidTable = NULL;
+#ifdef _WIN64
+
+#else
+    /*xp win7偏移是一样的*/
+    if (gWinVersion == WINDOWS_VERSION_XP  || 
+        gWinVersion == WINDOWS_VERSION_7_7000 || 
+        gWinVersion == WINDOWS_VERSION_7_7600_UP){
+        __asm
+        {
+            mov eax,fs:[0x34]
+            mov eax,[eax+0x80]
+            mov eax,[eax]
+            mov PspCidTable,eax
+        }
+    }
+#endif
+    return PspCidTable;
+}
+//
 //
 //  
-HANDLE GetCsrssPid()
+NTSTATUS QueryCsrssPid(PHANDLE handle)
 {
+#define POOL_TAG        ('dpcg')
+#define API_PORT_NAME   L"\\Windows\\ApiPort"
+    NTSTATUS status;
     HANDLE Process,hObject;
-    HANDLE CsrId = (HANDLE)0;
-    OBJECT_ATTRIBUTES obj;
-    CLIENT_ID cid;
-    UCHAR Buff[260] = {0};
-    POBJECT_NAME_INFORMATION ObjName = (PVOID)&Buff;
-    PSYSTEM_HANDLE_INFORMATION_EX Handles;
+    OBJECT_ATTRIBUTES obj       = {0};
+    CLIENT_ID cid               = {0};
+    UCHAR Buff[260]             = {0};
+    POBJECT_NAME_INFORMATION pni = (POBJECT_NAME_INFORMATION)Buff;
+    UNICODE_STRING uniApiPort   = {0};
+    PSYSTEM_HANDLE_INFORMATION_EX pshi;
+    ULONG ulRet;
     ULONG i;
-    ULONG nSize;
+    BOOL bHasFind = FALSE;
 
-    //获取PSYSTEM_HANDLE_INFORMATION_EX
-    Handles = GetInfoTable(&nSize);
-    if(!Handles)
-    {
-        return CsrId;
+    RtlInitUnicodeString(&uniApiPort,API_PORT_NAME);
+
+    status = ZwQuerySystemInformation(16,NULL,0,&ulRet);
+    if (status != STATUS_INFO_LENGTH_MISMATCH){
+        return status;
     }
-    for(i = 0; i < Handles->NumberOfHandles; i++)
-    {
-        if(Handles->Information[i].ObjectTypeNumber == 21)
-        {
+
+    pshi = (PSYSTEM_HANDLE_INFORMATION_EX)ExAllocatePoolWithTag(PagedPool,ulRet,POOL_TAG);
+    if(!pshi){
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RtlZeroMemory(pshi,ulRet);
+    status = ZwQuerySystemInformation(16,pshi,ulRet,&ulRet);
+    if (!NT_SUCCESS(status)){
+        ExFreePoolWithTag(pshi,POOL_TAG);
+        return status;
+    }
+
+    /*获得了所有句柄信息，根据端口名过滤csrss*/
+    for(i = 0; i < pshi->NumberOfHandles; i++){
+
+        if(pshi->Information[i].ObjectTypeNumber == 21){
+
             InitializeObjectAttributes(&obj, NULL, OBJ_KERNEL_HANDLE, NULL, NULL);
-            cid.UniqueProcess = (HANDLE)Handles->Information[i].ProcessId;
+            cid.UniqueProcess = (HANDLE)pshi->Information[i].ProcessId;
             cid.UniqueThread  = 0;
 
-            //打开进程
-            if(NT_SUCCESS(NtOpenProcess(&Process, PROCESS_DUP_HANDLE, &obj, &cid)))
-            {
-                //copy handle
-                if(NT_SUCCESS(ZwDuplicateObject(Process, (HANDLE)Handles->Information[i].Handle, NtCurrentProcess(), &hObject, 0, 0, DUPLICATE_SAME_ACCESS)))
-                {
-                    //query
-                    if(NT_SUCCESS(ZwQueryObject(hObject, ObjectNameInformation, ObjName, 0x100, NULL)))
-                    {
-                        if(ObjName->Name.Buffer && !wcsncmp(L"\\Windows\\ApiPort", ObjName->Name.Buffer, 20))
-                        {
-                            //返回pid
-                            CsrId = (HANDLE)Handles->Information[i].ProcessId;
-                            KdPrint(("Csrss.exe PID = %d", CsrId));
-                        }
-                    }
-                    ZwClose(hObject);
-                }
+            status = NtOpenProcess(&Process, PROCESS_DUP_HANDLE, &obj, &cid);
+
+            if (!NT_SUCCESS(status))
+                continue;
+
+            status = ZwDuplicateObject(Process, 
+                (HANDLE)pshi->Information[i].Handle, 
+                NtCurrentProcess(), 
+                &hObject, 
+                0, 
+                0, 
+                DUPLICATE_SAME_ACCESS);
+
+            if (!NT_SUCCESS(status)){
                 ZwClose(Process);
+                continue;
+            }
+
+            status= ZwQueryObject(hObject, 1, pni, 260, NULL);
+            if (!NT_SUCCESS(status)){
+                ZwClose(hObject);
+                ZwClose(Process);
+                continue;
+            }
+
+            /*查询成功*/
+            if(RtlEqualUnicodeString(&pni->Name,&uniApiPort,TRUE)){
+                //返回pid
+                *handle     = (HANDLE)pshi->Information[i].ProcessId;
+                status      = STATUS_SUCCESS;
+                bHasFind    = TRUE;
+                ZwClose(hObject);
+                ZwClose(Process);
+                break;
             }
         }
     }
-    ExFreePool(Handles);
-    return CsrId;
+    ExFreePoolWithTag(pshi,POOL_TAG);
+
+    return bHasFind ? STATUS_SUCCESS : STATUS_NOT_FOUND;
 }

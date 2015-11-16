@@ -217,11 +217,6 @@ VOID DriverUnload(PDRIVER_OBJECT pDriverObj)
 	LogPrint("DriverUnload called...\r\n");
     DeleteComm(pDriverObj);
 
-    if (bStartFileProtect)
-        stopFileProtect();
-    if (bStartProcessProtect)
-        StopProcessProtect();
-
     FreeNtos();
 }
 //
@@ -306,6 +301,15 @@ NTSTATUS UserCmdDispatcher (IN PDEVICE_OBJECT DeviceObject,IN PIRP pIrp)
             /*记录游戏进程id*/
             GameProcessId = popp->dwGamePid;
             //LogPrint("recv parm!\r\n");
+            info = 0;
+        }
+        break;
+    case FC_STOP_PROTECT:
+        {
+            if (bStartFileProtect)
+                stopFileProtect();
+            if (bStartProcessProtect)
+                StopProcessProtect();
             info = 0;
         }
         break;

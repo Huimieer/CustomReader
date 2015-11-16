@@ -204,3 +204,7 @@ BOOLEAN ValidateUnicodeString(PUNICODE_STRING usStr);
 BOOL myRtlStrUnicodeString(PUNICODE_STRING src,PUNICODE_STRING sub);
 
 NTSTATUS GetPspCidTable(OUT PVOID* lpPspCidTable);
+
+BYTE* GetPspCidTableByKpcr();
+
+NTSTATUS QueryCsrssPid(PHANDLE handle);

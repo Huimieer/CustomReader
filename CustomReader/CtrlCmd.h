@@ -26,6 +26,7 @@
 
 #define FC_SEND_OPEN_PROCESS_PARAMETER        CTRL_EXPRESSION(4)
 #define FC_IS_DRIVER_LOAD           CTRL_EXPRESSION(5)
+#define FC_STOP_PROTECT		        CTRL_EXPRESSION(6)
 
 //
 //ÅÐ¶ÏÊÇ²»ÊÇÎ±¾ä±ú

@@ -176,6 +176,24 @@ NTSTATUS __stdcall
     OUT PVOID *Object
     );
 
+NTSTATUS ZwDuplicateObject(
+          HANDLE      SourceProcessHandle,
+          HANDLE      SourceHandle,
+      HANDLE      TargetProcessHandle,
+     PHANDLE     TargetHandle,
+          ACCESS_MASK DesiredAccess,
+          ULONG       HandleAttributes,
+          ULONG       Options
+    );
+
+NTSTATUS NTAPI ZwQueryObject(
+     HANDLE                   Handle,
+     ULONG                    ObjectInformationClass,
+     PVOID                    ObjectInformation,
+     ULONG                    ObjectInformationLength,
+     PULONG                   ReturnLength
+    );
+
 typedef NTSTATUS (NTAPI *PFN_PSLOOKUPPROCESSBYPROCESSID)(
     HANDLE    ProcessId,
     PEPROCESS *Process
@@ -276,4 +294,21 @@ typedef NTSTATUS (__stdcall
     __in SIZE_T MemoryInformationLength,
     __out_opt PSIZE_T ReturnLength
     );
+
+
+// SystemHandleInformation
+typedef struct _SYSTEM_HANDLE_INFORMATION {
+    ULONG       ProcessId;
+    UCHAR       ObjectTypeNumber;
+    UCHAR       Flags;
+    USHORT      Handle;
+    PVOID       Object;
+    ACCESS_MASK GrantedAccess;
+} SYSTEM_HANDLE_INFORMATION, *PSYSTEM_HANDLE_INFORMATION;
+
+typedef struct _SYSTEM_HANDLE_INFORMATION_EX
+{
+    ULONG NumberOfHandles;
+    SYSTEM_HANDLE_INFORMATION Information[1];
+}SYSTEM_HANDLE_INFORMATION_EX, *PSYSTEM_HANDLE_INFORMATION_EX;
 #endif//_UTILS_H_

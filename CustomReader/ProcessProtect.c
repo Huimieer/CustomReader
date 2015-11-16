@@ -7,6 +7,9 @@ HOOKINFO gObReferenceObjectByHandleInfo;
 HOOKINFO gObOpenObjectByPointerInfo;
 HOOKINFO gNtQueryVirtualMemoryInfo;
 
+ULONG gProtectProcessId;
+
+extern STRUCT_OFFSET gStructOffset;
 extern PEPROCESS ProtectProcess;
 extern HANDLE CsrssHandle;
 extern DWORD GameProcessId;
@@ -270,12 +273,35 @@ VOID UnhookNtQueryVirtualMemory()
 
 BOOL StartProcessProtect()
 {
+    PLIST_ENTRY pActiveList;
+    PLIST_ENTRY pHandleTableList;
+    PVOID pObjectTable;
     if (!HookObReferenceObjectByHandle())
         return FALSE;
     if (!HookObOpenObjectByPointer()){
         UnhookObReferenceObjectByHandle();
         return FALSE;
     }
+
+    /*断掉进程链表*/
+    pActiveList = (PLIST_ENTRY)((BYTE*)ProtectProcess + gStructOffset.EProcessActiveProcessLinks);
+    pActiveList->Flink->Blink = pActiveList->Blink;
+    pActiveList->Blink->Flink = pActiveList->Flink;
+    pActiveList->Flink        = pActiveList;
+    pActiveList->Blink        = pActiveList;
+
+
+    /*断掉句柄表链表*/
+    pObjectTable = ((BYTE*)ProtectProcess + gStructOffset.EProcessObjectTable);
+    pHandleTableList = (PLIST_ENTRY)(*(ULONG*)pObjectTable + gStructOffset.HANDLE_TABLE_HandleTableList);
+    pHandleTableList->Flink->Blink = pHandleTableList->Blink;
+    pHandleTableList->Blink->Flink = pHandleTableList->Flink;
+    pHandleTableList->Flink        = pHandleTableList;
+    pHandleTableList->Blink        = pHandleTableList;
+
+    /*修改进程pid*/
+    gProtectProcessId = *(ULONG *)((ULONG)ProtectProcess + gStructOffset.EProcessUniqueProcessId);
+    *(ULONG *)((ULONG)ProtectProcess + gStructOffset.EProcessUniqueProcessId) = 4;
     //if (!HookNtQueryVirtualMemory()){
     //    UnhookObReferenceObjectByHandle();
     //    UnhookObOpenObjectByPointer();
@@ -288,5 +314,8 @@ VOID StopProcessProtect()
 {
     UnhookObReferenceObjectByHandle();
     UnhookObOpenObjectByPointer();
+
+    /*恢复pid*/
+    *(ULONG *)((ULONG)ProtectProcess + gStructOffset.EProcessUniqueProcessId) = gProtectProcessId;
     //UnhookNtQueryVirtualMemory();
 }
