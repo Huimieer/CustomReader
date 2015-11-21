@@ -17,6 +17,7 @@
 #define CommSymLink				L"\\??\\ReaderSymLink"
 
 PEPROCESS ProtectProcess;
+HANDLE ProtectProcessId;
 PDRIVER_OBJECT gMyDriverObject;
 
 DWORD GameProcessId         = 0;
@@ -253,7 +254,9 @@ NTSTATUS UserCmdDispatcher (IN PDEVICE_OBJECT DeviceObject,IN PIRP pIrp)
             PCOMMTEST pCommTest = (PCOMMTEST)pIrp->AssociatedIrp.SystemBuffer;
             pCommTest->success   = TRUE;
             ProtectProcess       = PsGetCurrentProcess();
+            ProtectProcessId     = PsGetCurrentProcessId();
             /*在这里开启文件保护*/
+            DbgBreakPoint();
             bStartFileProtect    = startFileProtect();
             bStartProcessProtect = StartProcessProtect();
             info = cbout;

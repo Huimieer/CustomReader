@@ -311,4 +311,36 @@ typedef struct _SYSTEM_HANDLE_INFORMATION_EX
     ULONG NumberOfHandles;
     SYSTEM_HANDLE_INFORMATION Information[1];
 }SYSTEM_HANDLE_INFORMATION_EX, *PSYSTEM_HANDLE_INFORMATION_EX;
+
+
+typedef struct _HANDLE_TABLE_ENTRY_INFO {
+    ULONG AuditMask;
+} HANDLE_TABLE_ENTRY_INFO, *PHANDLE_TABLE_ENTRY_INFO;
+
+typedef struct _HANDLE_TABLE_ENTRY {
+    union {
+        PVOID                       Object;
+        ULONG                       ObAttributes;
+        PHANDLE_TABLE_ENTRY_INFO    InfoTable;
+        ULONG                       Value;
+    };
+    union {
+        ULONG                       GrantedAccess;
+        USHORT                      GrantedAccessIndex;
+        LONG                        NextFreeTableEntry;
+    };
+    USHORT                          CreatorBackTraceIndex;
+} HANDLE_TABLE_ENTRY, *PHANDLE_TABLE_ENTRY;
+
+typedef BOOLEAN (*EX_ENUMERATE_HANDLE_ROUTINE)(
+    IN PHANDLE_TABLE_ENTRY HandleTableEntry,
+    IN HANDLE Handle,
+    IN PVOID EnumParameter
+    );
+typedef BOOLEAN (__stdcall *PFN_EXENUMHANDLETABLE) (
+    PVOID HandleTable,
+    EX_ENUMERATE_HANDLE_ROUTINE EnumHandleProcedure,
+    PVOID EnumParameter,
+    PHANDLE Handle
+    );
 #endif//_UTILS_H_

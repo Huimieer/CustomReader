@@ -26,6 +26,8 @@ typedef struct tagStructOffset{
 
     /*¾ä±ú±íÆ«ÒÆ*/
     ULONG  HANDLE_TABLE_HandleTableList; //+0x01c HandleTableList  : _LIST_ENTRY
+    ULONG  HANDLE_TABLE_FirstFree;//  +0x030         : Uint4B
+
 
 
 }STRUCT_OFFSET,*PSTRUCT_OFFSET;

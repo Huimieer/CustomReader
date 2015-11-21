@@ -69,6 +69,7 @@ VOID InitStructOffset()
             gStructOffset.FileObjectSize                = 0x70;
 
             gStructOffset.HANDLE_TABLE_HandleTableList  = 0x1c;
+            gStructOffset.HANDLE_TABLE_FirstFree        = 0x30;
 		}
 		break;
 	case WINDOWS_VERSION_7_7000:

@@ -1024,6 +1024,8 @@ NTSTATUS QueryCsrssPid(PHANDLE handle)
 {
 #define POOL_TAG        ('dpcg')
 #define API_PORT_NAME   L"\\Windows\\ApiPort"
+#define SystemHandleInformation     16
+
     NTSTATUS status;
     HANDLE Process,hObject;
     OBJECT_ATTRIBUTES obj       = {0};
@@ -1032,26 +1034,35 @@ NTSTATUS QueryCsrssPid(PHANDLE handle)
     POBJECT_NAME_INFORMATION pni = (POBJECT_NAME_INFORMATION)Buff;
     UNICODE_STRING uniApiPort   = {0};
     PSYSTEM_HANDLE_INFORMATION_EX pshi;
-    ULONG ulRet;
+    ULONG ulRet                 = 0;
     ULONG i;
     BOOL bHasFind = FALSE;
 
     RtlInitUnicodeString(&uniApiPort,API_PORT_NAME);
 
-    status = ZwQuerySystemInformation(16,NULL,0,&ulRet);
-    if (status != STATUS_INFO_LENGTH_MISMATCH){
-        return status;
+    pshi   = (PSYSTEM_HANDLE_INFORMATION_EX)ExAllocatePoolWithTag(PagedPool,0x1000,POOL_TAG);
+    if(!pshi){
+        return STATUS_INSUFFICIENT_RESOURCES;
     }
 
+    status = ZwQuerySystemInformation(SystemHandleInformation,pshi,0x1000,&ulRet);
+    if (status != STATUS_INFO_LENGTH_MISMATCH){
+        ExFreePoolWithTag(pshi,POOL_TAG);
+        return status;
+    }
+    ExFreePoolWithTag(pshi,POOL_TAG);
+
+    /*输入实际长度*/
     pshi = (PSYSTEM_HANDLE_INFORMATION_EX)ExAllocatePoolWithTag(PagedPool,ulRet,POOL_TAG);
     if(!pshi){
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
     RtlZeroMemory(pshi,ulRet);
-    status = ZwQuerySystemInformation(16,pshi,ulRet,&ulRet);
+    status = ZwQuerySystemInformation(SystemHandleInformation,pshi,ulRet,NULL);
     if (!NT_SUCCESS(status)){
         ExFreePoolWithTag(pshi,POOL_TAG);
+        LogPrint("QueryCsrssPid failed,status:0x%x\r\n",status);
         return status;
     }
 

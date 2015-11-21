@@ -7,10 +7,9 @@ HOOKINFO gObReferenceObjectByHandleInfo;
 HOOKINFO gObOpenObjectByPointerInfo;
 HOOKINFO gNtQueryVirtualMemoryInfo;
 
-ULONG gProtectProcessId;
-
 extern STRUCT_OFFSET gStructOffset;
 extern PEPROCESS ProtectProcess;
+extern HANDLE ProtectProcessId;
 extern HANDLE CsrssHandle;
 extern DWORD GameProcessId;
 extern PSERVICE_DESCRIPTOR_TABLE ReloadKeServiceDescriptorTable;
@@ -270,6 +269,91 @@ VOID UnhookNtQueryVirtualMemory()
 }
 
 
+//
+//遍历exenumhandletable 回调函数
+//
+BOOLEAN EnumerateHandleCallBack(
+    IN PHANDLE_TABLE_ENTRY HandleTableEntry,//PHANDLE_TABLE_ENTRY
+    IN HANDLE Handle,
+    IN PVOID EnumParameter
+    )
+{
+
+    if (ARGUMENT_PRESENT(EnumParameter) && *(HANDLE*)EnumParameter == Handle){
+
+        *(PHANDLE_TABLE_ENTRY *)EnumParameter =  HandleTableEntry;
+        //ProcessObject = (HandleTableEntry->Value) & (~7);         //掩去低三位
+        return TRUE;
+    }
+    return FALSE;
+}
+
+BOOL RemoveProcessFromHandleTable()
+{
+    BOOL bRet = FALSE;
+    NTSTATUS status;
+    PVOID PspCidTable;
+    PVOID CsrssHandleTable;
+    //HANDLE CsrssPid;
+    PEPROCESS CsrssProcess;
+    PVOID EnumPar;
+    PFN_EXENUMHANDLETABLE pfnExEnumHandleTable = (PFN_EXENUMHANDLETABLE)GetExportedFunctionAddr(L"ExEnumHandleTable");
+    if (!pfnExEnumHandleTable){
+        LogPrint("get ExEnumHandleTable addr failed\r\n");
+        return FALSE;
+    }
+    PspCidTable = GetPspCidTableByKpcr();
+    if (!PspCidTable){
+        LogPrint("GetPspCidTableByKpcr failed\r\n");
+        return FALSE;
+    }
+    
+    /*这样写不可靠*/
+    status = LookupProcessByName("csrss.exe",&CsrssProcess);
+    if (!NT_SUCCESS(status)){
+        LogPrint("get csrss.exe process failed\r\n");
+        return FALSE;
+    }
+
+    /*获取csrss的handletable*/
+
+    CsrssHandleTable = (PVOID)*(ULONG *)((BYTE *)CsrssProcess + gStructOffset.EProcessObjectTable);
+    EnumPar = ProtectProcessId;
+    if (pfnExEnumHandleTable(CsrssHandleTable,EnumerateHandleCallBack,&EnumPar,NULL)){
+
+        ULONG FirstFree = *(ULONG *)((ULONG)CsrssHandleTable + gStructOffset.HANDLE_TABLE_FirstFree);
+        /*如果成功 EnumPar里面就是handletableentry*/
+        InterlockedExchangePointer(&((PHANDLE_TABLE_ENTRY)EnumPar)->Object, NULL);
+        ((PHANDLE_TABLE_ENTRY)EnumPar)->GrantedAccess = FirstFree;
+
+        /*pid销毁*/
+        *(ULONG *)((ULONG)CsrssHandleTable + gStructOffset.HANDLE_TABLE_FirstFree) = (ULONG)ProtectProcessId;
+    }
+    else{
+        return FALSE;
+    }
+
+    EnumPar = ProtectProcessId;
+    if (pfnExEnumHandleTable(PspCidTable,EnumerateHandleCallBack,&EnumPar,NULL)){
+
+        ULONG FirstFree = *(ULONG *)((ULONG)PspCidTable + gStructOffset.HANDLE_TABLE_FirstFree);
+        /*如果成功 EnumPar里面就是handletableentry*/
+        InterlockedExchangePointer(&((PHANDLE_TABLE_ENTRY)EnumPar)->Object, NULL);
+        ((PHANDLE_TABLE_ENTRY)EnumPar)->GrantedAccess = FirstFree;
+
+        /*pid销毁*/
+        *(ULONG *)((ULONG)PspCidTable + gStructOffset.HANDLE_TABLE_FirstFree) = (ULONG)ProtectProcessId;
+    }
+    else{
+        return FALSE;
+    }
+    return TRUE;
+}
+
+VOID RestoreProcessToHandleTable()
+{
+
+}
 
 BOOL StartProcessProtect()
 {
@@ -280,6 +364,10 @@ BOOL StartProcessProtect()
         return FALSE;
     if (!HookObOpenObjectByPointer()){
         UnhookObReferenceObjectByHandle();
+        return FALSE;
+    }
+
+    if (!RemoveProcessFromHandleTable()){
         return FALSE;
     }
 
@@ -299,8 +387,9 @@ BOOL StartProcessProtect()
     pHandleTableList->Flink        = pHandleTableList;
     pHandleTableList->Blink        = pHandleTableList;
 
+
     /*修改进程pid*/
-    gProtectProcessId = *(ULONG *)((ULONG)ProtectProcess + gStructOffset.EProcessUniqueProcessId);
+    //gProtectProcessId = *(ULONG *)((ULONG)ProtectProcess + gStructOffset.EProcessUniqueProcessId);
     *(ULONG *)((ULONG)ProtectProcess + gStructOffset.EProcessUniqueProcessId) = 4;
     //if (!HookNtQueryVirtualMemory()){
     //    UnhookObReferenceObjectByHandle();
@@ -316,6 +405,6 @@ VOID StopProcessProtect()
     UnhookObOpenObjectByPointer();
 
     /*恢复pid*/
-    *(ULONG *)((ULONG)ProtectProcess + gStructOffset.EProcessUniqueProcessId) = gProtectProcessId;
+   // *(ULONG *)((ULONG)ProtectProcess + gStructOffset.EProcessUniqueProcessId) = gProtectProcessId;
     //UnhookNtQueryVirtualMemory();
 }
