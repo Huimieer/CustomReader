@@ -1,7 +1,7 @@
 #ifndef _LOGSYSTEM_H_
 #define _LOGSYSTEM_H_
 
-//#define CR_DBG
+#define CR_DBG
 
 #ifdef CR_DBG
 

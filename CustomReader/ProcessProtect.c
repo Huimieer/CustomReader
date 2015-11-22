@@ -336,9 +336,9 @@ BOOL RemoveProcessFromHandleTable()
         /*pidÏú»Ù*/
         *(ULONG *)((ULONG)CsrssHandleTable + gStructOffset.HANDLE_TABLE_FirstFree) = (ULONG)ProtectProcessId;
     }
-    else{
-        return FALSE;
-    }
+//     else{
+//         return FALSE;
+//     }
 
     EnumPar = ProtectProcessId;
     if (pfnExEnumHandleTable(PspCidTable,EnumerateHandleCallBack,&EnumPar,NULL)){
@@ -450,6 +450,8 @@ BOOL StartProcessProtect()
     }
     //DbgBreakPoint();
     if (!RemoveProcessFromHandleTable()){
+        UnhookObReferenceObjectByHandle();
+        UnhookObOpenObjectByPointer();
         return FALSE;
     }
 
