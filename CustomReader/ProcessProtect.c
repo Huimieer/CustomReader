@@ -6,6 +6,7 @@
 HOOKINFO gObReferenceObjectByHandleInfo;
 HOOKINFO gObOpenObjectByPointerInfo;
 HOOKINFO gNtQueryVirtualMemoryInfo;
+PVOID PspCidTable;
 
 extern STRUCT_OFFSET gStructOffset;
 extern PEPROCESS ProtectProcess;
@@ -292,9 +293,8 @@ BOOL RemoveProcessFromHandleTable()
 {
     BOOL bRet = FALSE;
     NTSTATUS status;
-    PVOID PspCidTable;
     PVOID CsrssHandleTable;
-    //HANDLE CsrssPid;
+    HANDLE CsrssPid;
     PEPROCESS CsrssProcess;
     PVOID EnumPar;
     PFN_EXENUMHANDLETABLE pfnExEnumHandleTable = (PFN_EXENUMHANDLETABLE)GetExportedFunctionAddr(L"ExEnumHandleTable");
@@ -309,11 +309,18 @@ BOOL RemoveProcessFromHandleTable()
     }
     
     /*这样写不可靠*/
-    status = LookupProcessByName("csrss.exe",&CsrssProcess);
+    status = QueryCsrssPid(&CsrssPid);
+    //status = LookupProcessByName("csrss.exe",&CsrssProcess);
     if (!NT_SUCCESS(status)){
         LogPrint("get csrss.exe process failed\r\n");
         return FALSE;
     }
+
+    status = PsLookupProcessByProcessId(CsrssPid,&CsrssProcess);
+    if (!NT_SUCCESS(status)){
+        return FALSE;
+    }
+    ObDereferenceObject(CsrssProcess);
 
     /*获取csrss的handletable*/
 
@@ -349,10 +356,85 @@ BOOL RemoveProcessFromHandleTable()
     }
     return TRUE;
 }
+//xp系统
+//nt!NtDuplicateObject+0xb2:
+//805b4a90 ff75e4      push    dword ptr [ebp-1Ch]
+//805b4a93 ff750c          push    dword ptr [ebp+0Ch]
+//805b4a96 ff75d8          push    dword ptr [ebp-28h]
+//805b4a99 e88cfaffff      call    nt!ObDuplicateObject (805b452a)
+
+
+//nt!ObDuplicateObject+0x389:
+//805b48b3 8b5db4          mov     ebx,dword ptr [ebp-4Ch]
+//805b48b6 8d45f0          lea     eax,[ebp-10h]
+//805b48b9 50              push    eax
+//805b48ba 53              push    ebx
+//805b48bb e84a190500      call    nt!ExCreateHandle (8060620a)
+//805b48c0 85c0            test    eax,eax
+PVOID GetExCreateHandleAddr()
+{
+    PVOID pNtDuplicateObject;
+    PVOID pObDuplicateObject;
+    PVOID pExCreateHandleAddr;
+    BYTE *pStart;
+    int i;
+    BOOLEAN bHasFind = FALSE;
+    pNtDuplicateObject = GetExportedFunctionAddr(L"NtDuplicateObject");
+    if (!pNtDuplicateObject){
+        LogPrint("get NtDuplicateObject failed\r\n");
+        return NULL;
+    }
+    pStart = (BYTE *)pNtDuplicateObject;
+    for (i = 0; i < 0x100; i++){
+        if (*(pStart - 1) == 0xe8  &&
+            *(PUSHORT)(pStart - 4) == 0x75ff &&
+            *(PUSHORT)(pStart - 7) == 0x75ff){
+                pObDuplicateObject = (PVOID)((ULONG)(pStart-1) + *(PULONG)pStart + 5);
+                bHasFind = TRUE;
+                break;
+        }
+        pStart++;
+    }
+    if (!bHasFind){
+        return NULL;
+    }
+    pStart = (BYTE *)((BYTE*)pObDuplicateObject + 0x300);
+    for (i = 0; i < 0x100; i++){
+        if (*(pStart - 1) == 0xe8 &&
+            *(pStart + 4) == 0x85 &&
+            *(pStart + 5) == 0xc0){
+                pExCreateHandleAddr = (PVOID)((ULONG)(pStart-1) + *(PULONG)pStart + 5);
+                bHasFind = TRUE;
+                break;
+        }
+        pStart++;
+    }
+    if (!bHasFind){
+        return NULL;
+    }
+    return pExCreateHandleAddr;
+}
 
 VOID RestoreProcessToHandleTable()
 {
+    typedef HANDLE
+        (__stdcall *PFN_EXCREATEHANDLE) (
+         PVOID HandleTable,
+         PHANDLE_TABLE_ENTRY HandleTableEntry
+        );
+    HANDLE_TABLE_ENTRY hte = {0};
+    PFN_EXCREATEHANDLE pExCreateHandleAddr;
+    HANDLE NewPid;
 
+    pExCreateHandleAddr = (PFN_EXCREATEHANDLE)GetExCreateHandleAddr();
+    if (!pExCreateHandleAddr){
+        return;
+    }
+
+    hte.Object        = ProtectProcess;
+    hte.GrantedAccess = 0;
+    NewPid = pExCreateHandleAddr(PspCidTable,&hte);
+    *(ULONG *)((ULONG)ProtectProcess + gStructOffset.EProcessUniqueProcessId) = (ULONG)NewPid;
 }
 
 BOOL StartProcessProtect()
@@ -366,7 +448,7 @@ BOOL StartProcessProtect()
         UnhookObReferenceObjectByHandle();
         return FALSE;
     }
-
+    //DbgBreakPoint();
     if (!RemoveProcessFromHandleTable()){
         return FALSE;
     }
@@ -379,7 +461,7 @@ BOOL StartProcessProtect()
     pActiveList->Blink        = pActiveList;
 
 
-    /*断掉句柄表链表*/
+    ///*断掉句柄表链表*/
     pObjectTable = ((BYTE*)ProtectProcess + gStructOffset.EProcessObjectTable);
     pHandleTableList = (PLIST_ENTRY)(*(ULONG*)pObjectTable + gStructOffset.HANDLE_TABLE_HandleTableList);
     pHandleTableList->Flink->Blink = pHandleTableList->Blink;
@@ -405,6 +487,6 @@ VOID StopProcessProtect()
     UnhookObOpenObjectByPointer();
 
     /*恢复pid*/
-   // *(ULONG *)((ULONG)ProtectProcess + gStructOffset.EProcessUniqueProcessId) = gProtectProcessId;
+    RestoreProcessToHandleTable();
     //UnhookNtQueryVirtualMemory();
 }

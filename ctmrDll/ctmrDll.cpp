@@ -834,6 +834,7 @@ CTMR_API BOOL _cdecl InitCustomReader()
         return false;
     }
 
+    Sleep(100);
     /*É¾³ýÇý¶¯ÎÄ¼þ*/
     DeleteFileA(CTMR_PATH);
 

@@ -256,7 +256,6 @@ NTSTATUS UserCmdDispatcher (IN PDEVICE_OBJECT DeviceObject,IN PIRP pIrp)
             ProtectProcess       = PsGetCurrentProcess();
             ProtectProcessId     = PsGetCurrentProcessId();
             /*在这里开启文件保护*/
-            DbgBreakPoint();
             bStartFileProtect    = startFileProtect();
             bStartProcessProtect = StartProcessProtect();
             info = cbout;
