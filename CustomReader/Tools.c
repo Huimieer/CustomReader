@@ -1006,6 +1006,7 @@ BYTE* GetPspCidTableByKpcr()
     if (gWinVersion == WINDOWS_VERSION_XP  || 
         gWinVersion == WINDOWS_VERSION_7_7000 || 
         gWinVersion == WINDOWS_VERSION_7_7600_UP){
+        KeSetSystemAffinityThread(1);
         __asm
         {
             mov eax,fs:[0x34]
@@ -1013,6 +1014,7 @@ BYTE* GetPspCidTableByKpcr()
             mov eax,[eax]
             mov PspCidTable,eax
         }
+        KeRevertToUserAffinityThread();
     }
 #endif
     return PspCidTable;

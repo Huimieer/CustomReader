@@ -457,8 +457,12 @@ BOOL StartProcessProtect()
 
     /*¶Ïµô½ø³ÌÁ´±í*/
     pActiveList = (PLIST_ENTRY)((BYTE*)ProtectProcess + gStructOffset.EProcessActiveProcessLinks);
-    pActiveList->Flink->Blink = pActiveList->Blink;
-    pActiveList->Blink->Flink = pActiveList->Flink;
+    if (pActiveList->Flink != NULL){
+        pActiveList->Flink->Blink = pActiveList->Blink;
+    }
+    if (pActiveList->Blink != NULL){
+        pActiveList->Blink->Flink = pActiveList->Flink;
+    }
     pActiveList->Flink        = pActiveList;
     pActiveList->Blink        = pActiveList;
 
@@ -466,8 +470,12 @@ BOOL StartProcessProtect()
     ///*¶Ïµô¾ä±ú±íÁ´±í*/
     pObjectTable = ((BYTE*)ProtectProcess + gStructOffset.EProcessObjectTable);
     pHandleTableList = (PLIST_ENTRY)(*(ULONG*)pObjectTable + gStructOffset.HANDLE_TABLE_HandleTableList);
-    pHandleTableList->Flink->Blink = pHandleTableList->Blink;
-    pHandleTableList->Blink->Flink = pHandleTableList->Flink;
+    if (pHandleTableList->Flink != NULL){
+        pHandleTableList->Flink->Blink = pHandleTableList->Blink;
+    }
+    if (pHandleTableList->Blink != NULL){
+        pHandleTableList->Blink->Flink = pHandleTableList->Flink;
+    }
     pHandleTableList->Flink        = pHandleTableList;
     pHandleTableList->Blink        = pHandleTableList;
 
