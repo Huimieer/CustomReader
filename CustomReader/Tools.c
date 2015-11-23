@@ -1010,9 +1010,15 @@ BYTE* GetPspCidTableByKpcr()
         __asm
         {
             mov eax,fs:[0x34]
+            test eax,eax
+            je _nothing
             mov eax,[eax+0x80]
+            test eax,eax
+            je _nothing
             mov eax,[eax]
             mov PspCidTable,eax
+_nothing:
+
         }
         KeRevertToUserAffinityThread();
     }
