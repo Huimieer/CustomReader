@@ -36,6 +36,7 @@ NTSTATUS
     PEPROCESS GameProcess;
     PEPROCESS tmpProcess;
     POBJECT_HEADER ObjectHeader;
+    ULONG ulRetAddress = 0;
     PFN_OBREFERENCEOBJECTBYHANDLE pfnObReferenceObjectByHandle;
     pfnObReferenceObjectByHandle = (PFN_OBREFERENCEOBJECTBYHANDLE)ObReferenceObjectByHandleZone;
 
@@ -76,10 +77,22 @@ NTSTATUS
 
             if ((PEPROCESS)*Object == ProtectProcess){
 
-                LogPrint("Game Open My Process[2]!\r\n");
+                //LogPrint("Game Open My Process[2]!\r\n");
 
                 ObDereferenceObject(*Object);
 
+                /*打印出这个函数的返回地址看看哪个函数在调用*/
+                __asm
+                {
+                    push eax
+                    mov eax,dword ptr [ebp+4]
+                    mov ulRetAddress,eax
+                    pop eax
+                }
+                if (MmIsAddressValid((PVOID)ulRetAddress)){
+
+                    LogPrint("RetAddress [ 0x%8x ] call ObReferenceObjectByHandle\r\n",ulRetAddress);
+                }
 //                 status = LookupProcessByName("Tencentdl.exe",&tmpProcess);
 // 
 //                 if (NT_SUCCESS(status)){
